@@ -528,7 +528,7 @@ function InfoPage() {
             Mendel also mattered because of his method. He chose traits that were visibly different,
             controlled which plants reproduced, and recorded enough offspring to detect numerical
             patterns. That careful design made it possible to compare expectation and outcome. Later
-            scientists built on that foundation by connecting Mendel\'s inheritance patterns to
+            scientists built on that foundation by connecting Mendel's inheritance patterns to
             chromosomes, genes, and eventually the structure of DNA. In other words, Mendel did not
             solve all of genetics, but he created one of the first strong experimental frameworks
             for studying how traits pass between generations.
@@ -596,7 +596,7 @@ function InfoPage() {
             <h2>Why pea plants?</h2>
           </div>
           <p className="section-text wide-text">
-            Pea plants were effective for Mendel\'s experiments because they gave him a practical
+            Pea plants were effective for Mendel's experiments because they gave him a practical
             way to isolate traits and track them over time. They grow relatively quickly, produce
             many offspring, and show visible contrasting traits such as flower color, seed shape,
             and plant height. Those differences made it easier to sort offspring into categories
