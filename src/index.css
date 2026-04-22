@@ -3,9 +3,7 @@
   line-height: 1.5;
   font-weight: 400;
   color: #18324c;
-  background:
-    radial-gradient(circle at top, rgba(255, 238, 175, 0.9), transparent 28%),
-    linear-gradient(180deg, #f7fbff 0%, #edf7ff 46%, #fffdf5 100%);
+  background-color: #dcedff;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -24,31 +22,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-}
-
-body::before,
-body::after {
-  content: '';
-  position: fixed;
-  inset: auto;
-  width: 38vw;
-  height: 38vw;
-  border-radius: 50%;
-  filter: blur(80px);
-  pointer-events: none;
-  z-index: -1;
-}
-
-body::before {
-  top: -10vw;
-  left: -8vw;
-  background: rgba(134, 204, 255, 0.3);
-}
-
-body::after {
-  right: -12vw;
-  bottom: -12vw;
-  background: rgba(255, 224, 121, 0.28);
+  background-color: #dcedff;
 }
 
 a {
