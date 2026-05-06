@@ -37,6 +37,28 @@ type GenerationResponse = {
   error?: string
 }
 
+const readGenerationResponse = async (response: Response): Promise<GenerationResponse> => {
+  const text = await response.text()
+
+  if (!text.trim()) {
+    return {
+      error: response.ok
+        ? 'The image service returned an empty response.'
+        : 'The image service is unavailable or returned an empty error response.',
+    }
+  }
+
+  try {
+    return JSON.parse(text) as GenerationResponse
+  } catch {
+    return {
+      error: text.startsWith('<!doctype html') || text.startsWith('<html')
+        ? 'The image API route did not return JSON. If you are developing locally, run the app with vercel dev so /api/generate-child is available.'
+        : text.slice(0, 240),
+    }
+  }
+}
+
 const imageTraitFields: ImageTraitField[] = [
   {
     key: 'skinTone',
@@ -230,7 +252,7 @@ function GamePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ humanOne, humanTwo }),
       })
-      const data = (await response.json()) as GenerationResponse
+      const data = await readGenerationResponse(response)
 
       if (!response.ok || !data.imageUrl) {
         throw new Error(data.error || 'The image model did not return a child image.')

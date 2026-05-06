@@ -19,10 +19,37 @@ const parseBody = (request) => {
   }
 
   if (typeof request.body === 'string') {
+    if (!request.body.trim()) {
+      return {}
+    }
+
     return JSON.parse(request.body)
   }
 
   return request.body
+}
+
+const readJsonResponse = async (upstreamResponse) => {
+  const text = await upstreamResponse.text()
+
+  if (!text.trim()) {
+    return {
+      data: null,
+      error: 'OpenRouter returned an empty response.',
+    }
+  }
+
+  try {
+    return {
+      data: JSON.parse(text),
+      error: '',
+    }
+  } catch {
+    return {
+      data: null,
+      error: text.slice(0, 500),
+    }
+  }
 }
 
 const describeAdult = (name, traits = {}) => {
@@ -127,12 +154,17 @@ export default async function handler(request, response) {
       }),
     })
 
-    const data = await modelResponse.json()
+    const { data, error: parseError } = await readJsonResponse(modelResponse)
 
     if (!modelResponse.ok) {
       response.status(modelResponse.status).json({
-        error: data?.error?.message || data?.message || 'The image generation request failed.',
+        error: data?.error?.message || data?.message || parseError || 'The image generation request failed.',
       })
+      return
+    }
+
+    if (!data) {
+      response.status(502).json({ error: parseError || 'The image model returned an unreadable response.' })
       return
     }
 
