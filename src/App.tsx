@@ -212,6 +212,7 @@ function GamePage() {
 
   const generateChild = async () => {
     setIsGenerating(true)
+    setImageUrl('')
     setError('')
     setCaption('')
 
