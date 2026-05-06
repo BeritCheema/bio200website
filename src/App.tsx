@@ -20,7 +20,6 @@ type ImageTraitKey =
   | 'faceShape'
   | 'noseShape'
   | 'build'
-  | 'style'
 
 type AdultTraits = Record<ImageTraitKey, string>
 
@@ -64,7 +63,7 @@ const imageTraitFields: ImageTraitField[] = [
     key: 'skinTone',
     label: 'Skin Tone',
     helper: 'Choose the general complexion for this adult.',
-    options: ['Very fair', 'Fair', 'Light olive', 'Medium tan', 'Brown', 'Deep brown'],
+    options: ['Very fair', 'Fair', 'Light olive', 'Medium tan', 'Brown', 'Dark brown', 'Black'],
   },
   {
     key: 'hairColor',
@@ -114,12 +113,6 @@ const imageTraitFields: ImageTraitField[] = [
     helper: 'Give the model a general adult body-frame cue.',
     options: ['Petite', 'Slim', 'Average', 'Athletic', 'Broad'],
   },
-  {
-    key: 'style',
-    label: 'Adult Style',
-    helper: 'This helps make each adult feel visually distinct.',
-    options: ['Classic casual', 'Sporty', 'Creative', 'Preppy', 'Outdoorsy'],
-  },
 ]
 
 const defaultHumanOne: AdultTraits = {
@@ -132,7 +125,6 @@ const defaultHumanOne: AdultTraits = {
   faceShape: 'Oval',
   noseShape: 'Straight',
   build: 'Average',
-  style: 'Classic casual',
 }
 
 const defaultHumanTwo: AdultTraits = {
@@ -145,29 +137,20 @@ const defaultHumanTwo: AdultTraits = {
   faceShape: 'Heart-shaped',
   noseShape: 'Button',
   build: 'Slim',
-  style: 'Creative',
 }
 
-const adultSummaries = [
-  { key: 'skinTone', label: 'skin' },
-  { key: 'hairColor', label: 'hair' },
-  { key: 'hairTexture', label: 'texture' },
-  { key: 'eyeColor', label: 'eyes' },
-  { key: 'freckles', label: 'freckles' },
-] satisfies Array<{ key: ImageTraitKey; label: string }>
-
-const describeAdult = (traits: AdultTraits) =>
-  imageTraitFields.map((field) => field.label + ': ' + traits[field.key]).join('; ')
 
 function ImageTraitSelector({
   title,
   subtitle,
   traits,
+  variant,
   onChange,
 }: {
   title: string
   subtitle: string
   traits: AdultTraits
+  variant: 'mom' | 'dad'
   onChange: (key: ImageTraitKey, value: string) => void
 }) {
   const titleId = title.replaceAll(' ', '-').toLowerCase() + '-title'
@@ -181,7 +164,7 @@ function ImageTraitSelector({
           <p>{subtitle}</p>
         </div>
 
-        <div className="face-token" aria-hidden="true">
+        <div className={`face-token ${variant === 'mom' ? 'face-token-mom' : ''}`} aria-hidden="true">
           <span className="face-hair" />
           <span className="face-eye left-eye" />
           <span className="face-eye right-eye" />
@@ -210,24 +193,10 @@ function ImageTraitSelector({
   )
 }
 
-function AdultSnapshot({ title, traits }: { title: string; traits: AdultTraits }) {
-  return (
-    <article className="snapshot-card">
-      <strong>{title}</strong>
-      <div className="snapshot-list">
-        {adultSummaries.map((item) => (
-          <span key={item.key}>
-            {item.label}: {traits[item.key]}
-          </span>
-        ))}
-      </div>
-    </article>
-  )
-}
 
 function GamePage() {
-  const [humanOne, setHumanOne] = useState<AdultTraits>(defaultHumanOne)
-  const [humanTwo, setHumanTwo] = useState<AdultTraits>(defaultHumanTwo)
+  const [mom, setHumanOne] = useState<AdultTraits>(defaultHumanOne)
+  const [dad, setHumanTwo] = useState<AdultTraits>(defaultHumanTwo)
   const [imageUrl, setImageUrl] = useState('')
   const [caption, setCaption] = useState('')
   const [error, setError] = useState('')
@@ -250,7 +219,7 @@ function GamePage() {
       const response = await fetch('/api/generate-child', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ humanOne, humanTwo }),
+        body: JSON.stringify({ mom, dad }),
       })
       const data = await readGenerationResponse(response)
 
@@ -274,10 +243,9 @@ function GamePage() {
       <section className="game-hero-panel">
         <div className="hero-copy">
           <p className="eyebrow">BIO200 Image Game</p>
-          <h1>Build two adults. Generate a fictional child.</h1>
+          <h1>Build mom and dad. Generate a fictional child.</h1>
           <p className="hero-summary">
-            Choose visual traits for Human One and Human Two, then use GPT image generation to create
-            a realistic child portrait concept. This is a creative image game, not a real genetics prediction.
+            Choose visible traits for mom and dad, then generate a realistic child portrait concept.
           </p>
         </div>
 
@@ -285,26 +253,27 @@ function GamePage() {
           <button className="primary-button" type="button" onClick={generateChild} disabled={isGenerating}>
             {isGenerating ? 'Generating image...' : 'Generate Child Image'}
           </button>
-          <span>Uses the server-side OPENROUTER_API_KEY environment variable.</span>
         </div>
       </section>
 
       <section className="builder-grid" aria-label="Adult trait builders">
         <ImageTraitSelector
-          title="Human One"
-          subtitle="Set the first adult's visible traits."
-          traits={humanOne}
+          title="Mom"
+          subtitle="Set the mom's visible traits."
+          traits={mom}
+          variant="mom"
           onChange={updateHumanOne}
         />
         <ImageTraitSelector
-          title="Human Two"
-          subtitle="Set the second adult's visible traits."
-          traits={humanTwo}
+          title="Dad"
+          subtitle="Set the dad's visible traits."
+          traits={dad}
+          variant="dad"
           onChange={updateHumanTwo}
         />
       </section>
 
-      <section className="game-result-grid">
+      <section className="game-result-section">
         <div className="image-game-result-panel image-panel">
           <div className="section-heading">
             <p className="section-kicker">Generated Result</p>
@@ -315,8 +284,12 @@ function GamePage() {
             {imageUrl ? (
               <img src={imageUrl} alt="AI-generated portrait of a fictional child based on selected adult traits." />
             ) : (
-              <div className="empty-state">
-                <span />
+              <div className={isGenerating ? 'empty-state generating' : 'empty-state'}>
+                <span>
+                  <i className="hair-line" />
+                  <i className="hair-line" />
+                  <i className="hair-line" />
+                </span>
                 <strong>No image yet</strong>
                 <p>Choose the adult traits, then generate a child image.</p>
               </div>
@@ -326,24 +299,6 @@ function GamePage() {
           {caption ? <p className="caption-text">{caption}</p> : null}
           {error ? <p className="error-box">{error}</p> : null}
         </div>
-
-        <aside className="image-game-result-panel prompt-panel">
-          <div className="section-heading">
-            <p className="section-kicker">Current Inputs</p>
-            <h2>Trait mix</h2>
-          </div>
-
-          <div className="snapshot-grid">
-            <AdultSnapshot title="Human One" traits={humanOne} />
-            <AdultSnapshot title="Human Two" traits={humanTwo} />
-          </div>
-
-          <div className="prompt-preview">
-            <strong>Prompt details sent to the server</strong>
-            <p>Human One: {describeAdult(humanOne)}</p>
-            <p>Human Two: {describeAdult(humanTwo)}</p>
-          </div>
-        </aside>
       </section>
     </main>
   )
@@ -411,28 +366,6 @@ const inheritancePatterns: InheritancePattern[] = [
   },
 ]
 
-const imageCredits = [
-  {
-    title: 'Chromosome, DNA, and gene diagram',
-    source: 'Wikipedia / Wikimedia Commons',
-    href: 'https://en.wikipedia.org/wiki/DNA',
-  },
-  {
-    title: 'Punnett square graphic',
-    source: 'Wikipedia / Wikimedia Commons',
-    href: 'https://en.wikipedia.org/wiki/Punnett_square',
-  },
-  {
-    title: 'Gregor Mendel portrait',
-    source: 'Wikipedia / Wikimedia Commons',
-    href: 'https://en.wikipedia.org/wiki/Gregor_Mendel',
-  },
-  {
-    title: 'Pea pods photograph',
-    source: 'Wikipedia / Wikimedia Commons',
-    href: 'https://en.wikipedia.org/wiki/Pea',
-  },
-]
 
 function SiteNav() {
   return (
@@ -558,6 +491,14 @@ function InfoPage() {
           </p>
         </article>
 
+        <article className="panel media-card">
+          <img src="/images/skin-color-histogram.png" alt="Polygenic inheritance chart showing skin color allele combinations and bell curve distribution." />
+          <div className="media-caption">
+            <span>Polygenic inheritance</span>
+            <p>Multiple gene pairs produce a continuous range of skin tones, shown here with a Punnett grid and histogram.</p>
+          </div>
+        </article>
+
         <article className="panel panel-wide">
           <div className="section-heading">
             <p className="section-kicker">History</p>
@@ -663,12 +604,12 @@ function InfoPage() {
           </p>
         </article>
 
-        <article className="panel panel-wide">
+        <article className="panel">
           <div className="section-heading">
             <p className="section-kicker">Applications</p>
             <h2>Why genetics matters now</h2>
           </div>
-          <p className="section-text wide-text">
+          <p className="section-text">
             Genetics matters now because it affects medicine, agriculture, biotechnology, and the
             way scientists understand human development and disease. Doctors use genetic knowledge
             to study inherited disorders, estimate family risk, and develop more targeted medical
@@ -676,7 +617,7 @@ function InfoPage() {
             which helps explain why some diseases run in families and why people can respond
             differently to the same treatment.
           </p>
-          <p className="section-text wide-text text-block-spacing">
+          <p className="section-text text-block-spacing">
             In agriculture, genetics is used to breed crops and animals with specific traits such
             as disease resistance, faster growth, better nutrition, or improved yield. In modern
             biotechnology, tools such as genome sequencing and gene editing have made it possible
@@ -685,7 +626,7 @@ function InfoPage() {
             opened major discussions about medical treatment, ethics, and the future of genetic
             engineering.
           </p>
-          <p className="section-text wide-text text-block-spacing">
+          <p className="section-text text-block-spacing">
             Genetics is also connected to some of the most debated scientific frontiers today.
             Topics such as cloning, embryo screening, gene therapy, and personalized medicine show
             how powerful genetic science has become. Human cloning, for example, is often discussed
@@ -696,22 +637,16 @@ function InfoPage() {
             of how society thinks about health, identity, technology, and the future of biology.
           </p>
         </article>
+
+        <article className="panel media-card">
+          <img src="/images/lab-research.jpg" alt="Multichannel pipette dispensing samples into a well plate in a molecular diagnostics laboratory." />
+          <div className="media-caption">
+            <span>Modern genetics lab</span>
+            <p>Tools like multichannel pipettes and well plates are used in gene sequencing and molecular diagnostics research.</p>
+          </div>
+        </article>
       </section>
 
-      <section className="panel credits-panel">
-        <div className="section-heading">
-          <p className="section-kicker">Asset Credits</p>
-          <h2>Web images used on this page</h2>
-        </div>
-        <div className="credits-grid">
-          {imageCredits.map((credit) => (
-            <a key={credit.title} href={credit.href} target="_blank" rel="noreferrer" className="credit-card">
-              <strong>{credit.title}</strong>
-              <span>{credit.source}</span>
-            </a>
-          ))}
-        </div>
-      </section>
     </main>
   )
 }

@@ -1,120 +1,151 @@
-const MODEL = 'openai/gpt-5.4-image-2'
+const MODEL = 'bytedance-seed/seedream-4.5'
 
-const traitLabels = {
-  skinTone: 'Skin tone',
-  hairColor: 'Hair color',
-  hairTexture: 'Hair texture',
-  eyeColor: 'Eye color',
-  freckles: 'Freckles',
-  dimples: 'Dimples',
-  faceShape: 'Face shape',
-  noseShape: 'Nose shape',
-  build: 'Build',
-  style: 'Adult style',
+// ── Trait inheritance logic ──────────────────────────────────────────
+
+const pick = (array) => array[Math.floor(Math.random() * array.length)]
+const coin = () => Math.random() < 0.5
+
+// Ordered scales for polygenic / dominance-hierarchy traits (index 0 = most dominant or darkest)
+const skinToneScale = ['Black', 'Dark brown', 'Brown', 'Medium tan', 'Light olive', 'Fair', 'Very fair']
+const hairColorScale = ['Black', 'Dark brown', 'Chestnut brown', 'Auburn', 'Blonde', 'Red']
+const hairTextureScale = ['Coily', 'Tight curls', 'Loose curls', 'Wavy', 'Straight']
+const eyeColorScale = ['Brown', 'Hazel', 'Amber', 'Green', 'Blue', 'Gray']
+const buildScale = ['Broad', 'Athletic', 'Average', 'Slim', 'Petite']
+
+// Blend two values on an ordered scale: pick a point between the two parents, biased toward
+// the dominant (lower-index) end, with a small random offset so siblings could differ.
+const blendOnScale = (scale, valueA, valueB) => {
+  const idxA = Math.max(scale.indexOf(valueA), 0)
+  const idxB = Math.max(scale.indexOf(valueB), 0)
+  const midpoint = (idxA + idxB) / 2
+  // jitter ±1 step so results aren't always the exact midpoint
+  const jitter = Math.floor(Math.random() * 3) - 1
+  const idx = Math.min(Math.max(Math.round(midpoint + jitter), 0), scale.length - 1)
+  return scale[idx]
 }
 
-const parseBody = (request) => {
-  if (!request.body) {
-    return {}
+// Dominant-style inheritance: the "stronger" value (lower index) wins ~70% of the time,
+// otherwise take the other parent's value.
+const dominantPick = (scale, valueA, valueB) => {
+  const idxA = Math.max(scale.indexOf(valueA), 0)
+  const idxB = Math.max(scale.indexOf(valueB), 0)
+  if (idxA === idxB) return scale[idxA]
+  const dominant = idxA < idxB ? valueA : valueB
+  const recessive = idxA < idxB ? valueB : valueA
+  return Math.random() < 0.7 ? dominant : recessive
+}
+
+// Freckles: "Many freckles" is semi-dominant
+const frecklesScale = ['Many freckles', 'Light freckles', 'None']
+
+const inheritFreckles = (a, b) => {
+  if (a === b) return a
+  if (a === 'Many freckles' || b === 'Many freckles') {
+    return Math.random() < 0.6 ? 'Light freckles' : 'Many freckles'
   }
+  // one has Light, other has None
+  return Math.random() < 0.5 ? 'Light freckles' : 'None'
+}
 
+// Dimples: dominant trait
+const inheritDimples = (a, b) => {
+  if (a === 'Two dimples' || b === 'Two dimples') {
+    return Math.random() < 0.75 ? pick(['One dimple', 'Two dimples']) : 'No dimples'
+  }
+  if (a === 'One dimple' || b === 'One dimple') {
+    return Math.random() < 0.6 ? 'One dimple' : 'No dimples'
+  }
+  return 'No dimples'
+}
+
+// Face shape & nose shape: randomly pick one parent's value, or occasionally a common "blend"
+const inheritFromEither = (a, b) => {
+  if (a === b) return a
+  return coin() ? a : b
+}
+
+const resolveChildTraits = (humanOne, humanTwo) => {
+  const val = (traits, key) => (typeof traits?.[key] === 'string' ? traits[key] : '')
+
+  return {
+    skinTone: blendOnScale(skinToneScale, val(humanOne, 'skinTone'), val(humanTwo, 'skinTone')),
+    hairColor: dominantPick(hairColorScale, val(humanOne, 'hairColor'), val(humanTwo, 'hairColor')),
+    hairTexture: dominantPick(hairTextureScale, val(humanOne, 'hairTexture'), val(humanTwo, 'hairTexture')),
+    eyeColor: dominantPick(eyeColorScale, val(humanOne, 'eyeColor'), val(humanTwo, 'eyeColor')),
+    freckles: inheritFreckles(val(humanOne, 'freckles'), val(humanTwo, 'freckles')),
+    dimples: inheritDimples(val(humanOne, 'dimples'), val(humanTwo, 'dimples')),
+    faceShape: inheritFromEither(val(humanOne, 'faceShape'), val(humanTwo, 'faceShape')),
+    noseShape: inheritFromEither(val(humanOne, 'noseShape'), val(humanTwo, 'noseShape')),
+    build: blendOnScale(buildScale, val(humanOne, 'build'), val(humanTwo, 'build')),
+  }
+}
+
+// ── Prompt construction ──────────────────────────────────────────────
+
+const buildChildPrompt = (child) => {
+  const gender = 'girl'
+  return [
+    `Create a single square, photorealistic portrait of a fictional ${gender}, about 7 to 10 years old.`,
+    `Frame the shot from the waist up, not a close-up of the face. The ${gender} should look like a real person photographed in a studio with soft natural daylight and a clean neutral background.`,
+    `The ${gender} is smiling gently and wearing simple, age-appropriate casual clothing.`,
+    '',
+    'Use exactly these physical features:',
+    `- Skin tone: ${child.skinTone}`,
+    `- Hair color: ${child.hairColor}`,
+    `- Hair texture: ${child.hairTexture}`,
+    `- Eye color: ${child.eyeColor}`,
+    `- Freckles: ${child.freckles}`,
+    `- Dimples: ${child.dimples}`,
+    `- Face shape: ${child.faceShape}`,
+    `- Nose shape: ${child.noseShape}`,
+    `- Build: ${child.build}`,
+    '',
+    'Do not generate a real celebrity or existing person. Keep the image safe, friendly, and age-appropriate.',
+  ].join('\n')
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────
+
+const parseBody = (request) => {
+  if (!request.body) return {}
   if (typeof request.body === 'string') {
-    if (!request.body.trim()) {
-      return {}
-    }
-
+    if (!request.body.trim()) return {}
     return JSON.parse(request.body)
   }
-
   return request.body
 }
 
 const readJsonResponse = async (upstreamResponse) => {
   const text = await upstreamResponse.text()
-
-  if (!text.trim()) {
-    return {
-      data: null,
-      error: 'OpenRouter returned an empty response.',
-    }
-  }
-
+  if (!text.trim()) return { data: null, error: 'OpenRouter returned an empty response.' }
   try {
-    return {
-      data: JSON.parse(text),
-      error: '',
-    }
+    return { data: JSON.parse(text), error: '' }
   } catch {
-    return {
-      data: null,
-      error: text.slice(0, 500),
-    }
+    return { data: null, error: text.slice(0, 500) }
   }
-}
-
-const describeAdult = (name, traits = {}) => {
-  const lines = Object.entries(traitLabels).map(([key, label]) => {
-    const value = typeof traits[key] === 'string' ? traits[key] : 'not specified'
-    return `- ${label}: ${value.slice(0, 80)}`
-  })
-
-  return `${name}\n${lines.join('\n')}`
 }
 
 const findImageUrl = (value) => {
-  if (!value) {
-    return ''
-  }
-
+  if (!value) return ''
   if (typeof value === 'string') {
     return value.startsWith('data:image/') || /^https?:\/\//.test(value) ? value : ''
   }
-
   if (Array.isArray(value)) {
     for (const item of value) {
       const match = findImageUrl(item)
-      if (match) {
-        return match
-      }
+      if (match) return match
     }
   }
-
   if (typeof value === 'object') {
     for (const item of Object.values(value)) {
       const match = findImageUrl(item)
-      if (match) {
-        return match
-      }
+      if (match) return match
     }
   }
-
   return ''
 }
 
-const findText = (content) => {
-  if (typeof content === 'string') {
-    return content
-  }
-
-  if (!Array.isArray(content)) {
-    return ''
-  }
-
-  return content
-    .map((part) => {
-      if (typeof part === 'string') {
-        return part
-      }
-
-      if (part && typeof part === 'object' && typeof part.text === 'string') {
-        return part.text
-      }
-
-      return ''
-    })
-    .filter(Boolean)
-    .join(' ')
-}
+// ── Handler ──────────────────────────────────────────────────────────
 
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
@@ -123,16 +154,15 @@ export default async function handler(request, response) {
   }
 
   const apiKey = process.env.OPENROUTER_API_KEY
-
   if (!apiKey) {
     response.status(500).json({ error: 'Missing OPENROUTER_API_KEY on the server.' })
     return
   }
 
   try {
-    const { humanOne, humanTwo } = parseBody(request)
-
-    const prompt = `Create one square, realistic but warm portrait of a fictional child, about 7 to 10 years old, based loosely on the visible traits from two fictional adults. Do not create a real person, celebrity, medical prediction, or sexualized image. Keep the child fully clothed, friendly, natural, and age-appropriate. Use a clean studio background, soft daylight, and detailed facial features. Blend the adult traits naturally rather than copying either adult exactly.\n\n${describeAdult('Human One', humanOne)}\n\n${describeAdult('Human Two', humanTwo)}`
+    const { mom, dad } = parseBody(request)
+    const childTraits = resolveChildTraits(mom, dad)
+    const prompt = buildChildPrompt(childTraits)
 
     const modelResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -144,13 +174,8 @@ export default async function handler(request, response) {
       },
       body: JSON.stringify({
         model: MODEL,
-        modalities: ['image', 'text'],
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
+        modalities: ['image'],
+        messages: [{ role: 'user', content: prompt }],
       }),
     })
 
@@ -178,7 +203,8 @@ export default async function handler(request, response) {
 
     response.status(200).json({
       imageUrl,
-      caption: findText(message?.content) || 'Generated from the selected Human One and Human Two traits.',
+      childTraits,
+      prompt,
     })
   } catch (error) {
     response.status(500).json({
