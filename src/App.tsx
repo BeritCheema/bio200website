@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
 import './App.css'
 
@@ -10,32 +10,322 @@ type InheritancePattern = {
   whyItMatters: string
 }
 
-type QuizQuestion = {
-  prompt: string
-  options: string[]
-  answer: string
-  explanation: string
-}
-
-type TraitDefinition = {
-  key: TraitKey
-  name: string
-  dominantAllele: string
-  recessiveAllele: string
-  dominantLabel: string
-  recessiveLabel: string
-  description: string
-}
-
-type TraitKey =
-  | 'widowsPeak'
+type ImageTraitKey =
+  | 'skinTone'
+  | 'hairColor'
   | 'hairTexture'
-  | 'tongueRolling'
+  | 'eyeColor'
   | 'freckles'
-  | 'earLobes'
+  | 'dimples'
+  | 'faceShape'
+  | 'noseShape'
+  | 'build'
+  | 'style'
 
-type ParentState = Record<TraitKey, { parentOne: string; parentTwo: string }>
-type ChildProfile = Record<TraitKey, { genotype: string; phenotype: string }>
+type AdultTraits = Record<ImageTraitKey, string>
+
+type ImageTraitField = {
+  key: ImageTraitKey
+  label: string
+  helper: string
+  options: string[]
+}
+
+type GenerationResponse = {
+  imageUrl?: string
+  caption?: string
+  error?: string
+}
+
+const imageTraitFields: ImageTraitField[] = [
+  {
+    key: 'skinTone',
+    label: 'Skin Tone',
+    helper: 'Choose the general complexion for this adult.',
+    options: ['Very fair', 'Fair', 'Light olive', 'Medium tan', 'Brown', 'Deep brown'],
+  },
+  {
+    key: 'hairColor',
+    label: 'Hair Color',
+    helper: 'Pick a natural-looking hair color.',
+    options: ['Black', 'Dark brown', 'Chestnut brown', 'Auburn', 'Blonde', 'Red'],
+  },
+  {
+    key: 'hairTexture',
+    label: 'Hair Texture',
+    helper: 'Set the hair pattern and volume.',
+    options: ['Straight', 'Wavy', 'Loose curls', 'Tight curls', 'Coily'],
+  },
+  {
+    key: 'eyeColor',
+    label: 'Eye Color',
+    helper: 'Select the adult eye color.',
+    options: ['Brown', 'Hazel', 'Amber', 'Green', 'Blue', 'Gray'],
+  },
+  {
+    key: 'freckles',
+    label: 'Freckles',
+    helper: 'Choose whether freckles should influence the child image.',
+    options: ['None', 'Light freckles', 'Many freckles'],
+  },
+  {
+    key: 'dimples',
+    label: 'Dimples',
+    helper: 'Add a smile detail for the adult.',
+    options: ['No dimples', 'One dimple', 'Two dimples'],
+  },
+  {
+    key: 'faceShape',
+    label: 'Face Shape',
+    helper: 'Describe the adult face structure.',
+    options: ['Oval', 'Round', 'Heart-shaped', 'Square', 'Long'],
+  },
+  {
+    key: 'noseShape',
+    label: 'Nose Shape',
+    helper: 'Choose a broad visual nose description.',
+    options: ['Small', 'Straight', 'Button', 'Broad', 'Aquiline'],
+  },
+  {
+    key: 'build',
+    label: 'Build',
+    helper: 'Give the model a general adult body-frame cue.',
+    options: ['Petite', 'Slim', 'Average', 'Athletic', 'Broad'],
+  },
+  {
+    key: 'style',
+    label: 'Adult Style',
+    helper: 'This helps make each adult feel visually distinct.',
+    options: ['Classic casual', 'Sporty', 'Creative', 'Preppy', 'Outdoorsy'],
+  },
+]
+
+const defaultHumanOne: AdultTraits = {
+  skinTone: 'Medium tan',
+  hairColor: 'Dark brown',
+  hairTexture: 'Wavy',
+  eyeColor: 'Brown',
+  freckles: 'Light freckles',
+  dimples: 'Two dimples',
+  faceShape: 'Oval',
+  noseShape: 'Straight',
+  build: 'Average',
+  style: 'Classic casual',
+}
+
+const defaultHumanTwo: AdultTraits = {
+  skinTone: 'Fair',
+  hairColor: 'Auburn',
+  hairTexture: 'Loose curls',
+  eyeColor: 'Green',
+  freckles: 'Many freckles',
+  dimples: 'No dimples',
+  faceShape: 'Heart-shaped',
+  noseShape: 'Button',
+  build: 'Slim',
+  style: 'Creative',
+}
+
+const adultSummaries = [
+  { key: 'skinTone', label: 'skin' },
+  { key: 'hairColor', label: 'hair' },
+  { key: 'hairTexture', label: 'texture' },
+  { key: 'eyeColor', label: 'eyes' },
+  { key: 'freckles', label: 'freckles' },
+] satisfies Array<{ key: ImageTraitKey; label: string }>
+
+const describeAdult = (traits: AdultTraits) =>
+  imageTraitFields.map((field) => field.label + ': ' + traits[field.key]).join('; ')
+
+function ImageTraitSelector({
+  title,
+  subtitle,
+  traits,
+  onChange,
+}: {
+  title: string
+  subtitle: string
+  traits: AdultTraits
+  onChange: (key: ImageTraitKey, value: string) => void
+}) {
+  const titleId = title.replaceAll(' ', '-').toLowerCase() + '-title'
+
+  return (
+    <section className="human-card" aria-labelledby={titleId}>
+      <div className="human-card-header">
+        <div>
+          <p className="eyebrow">Trait Selection</p>
+          <h2 id={titleId}>{title}</h2>
+          <p>{subtitle}</p>
+        </div>
+
+        <div className="face-token" aria-hidden="true">
+          <span className="face-hair" />
+          <span className="face-eye left-eye" />
+          <span className="face-eye right-eye" />
+          <span className="face-smile" />
+        </div>
+      </div>
+
+      <div className="selector-stack">
+        {imageTraitFields.map((field) => (
+          <label key={field.key} className="image-trait-control">
+            <span>
+              <strong>{field.label}</strong>
+              <small>{field.helper}</small>
+            </span>
+            <select value={traits[field.key]} onChange={(event) => onChange(field.key, event.target.value)}>
+              {field.options.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function AdultSnapshot({ title, traits }: { title: string; traits: AdultTraits }) {
+  return (
+    <article className="snapshot-card">
+      <strong>{title}</strong>
+      <div className="snapshot-list">
+        {adultSummaries.map((item) => (
+          <span key={item.key}>
+            {item.label}: {traits[item.key]}
+          </span>
+        ))}
+      </div>
+    </article>
+  )
+}
+
+function GamePage() {
+  const [humanOne, setHumanOne] = useState<AdultTraits>(defaultHumanOne)
+  const [humanTwo, setHumanTwo] = useState<AdultTraits>(defaultHumanTwo)
+  const [imageUrl, setImageUrl] = useState('')
+  const [caption, setCaption] = useState('')
+  const [error, setError] = useState('')
+  const [isGenerating, setIsGenerating] = useState(false)
+
+  const updateHumanOne = (key: ImageTraitKey, value: string) => {
+    setHumanOne((current) => ({ ...current, [key]: value }))
+  }
+
+  const updateHumanTwo = (key: ImageTraitKey, value: string) => {
+    setHumanTwo((current) => ({ ...current, [key]: value }))
+  }
+
+  const generateChild = async () => {
+    setIsGenerating(true)
+    setError('')
+    setCaption('')
+
+    try {
+      const response = await fetch('/api/generate-child', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ humanOne, humanTwo }),
+      })
+      const data = (await response.json()) as GenerationResponse
+
+      if (!response.ok || !data.imageUrl) {
+        throw new Error(data.error || 'The image model did not return a child image.')
+      }
+
+      setImageUrl(data.imageUrl)
+      setCaption(data.caption || 'Generated from the two adult trait profiles.')
+    } catch (generationError) {
+      setError(generationError instanceof Error ? generationError.message : 'Something went wrong.')
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  return (
+    <main className="page-shell image-game-page">
+      <SiteNav />
+
+      <section className="game-hero-panel">
+        <div className="hero-copy">
+          <p className="eyebrow">BIO200 Image Game</p>
+          <h1>Build two adults. Generate a fictional child.</h1>
+          <p className="hero-summary">
+            Choose visual traits for Human One and Human Two, then use GPT image generation to create
+            a realistic child portrait concept. This is a creative image game, not a real genetics prediction.
+          </p>
+        </div>
+
+        <div className="game-hero-actions">
+          <button className="primary-button" type="button" onClick={generateChild} disabled={isGenerating}>
+            {isGenerating ? 'Generating image...' : 'Generate Child Image'}
+          </button>
+          <span>Uses the server-side OPENROUTER_API_KEY environment variable.</span>
+        </div>
+      </section>
+
+      <section className="builder-grid" aria-label="Adult trait builders">
+        <ImageTraitSelector
+          title="Human One"
+          subtitle="Set the first adult's visible traits."
+          traits={humanOne}
+          onChange={updateHumanOne}
+        />
+        <ImageTraitSelector
+          title="Human Two"
+          subtitle="Set the second adult's visible traits."
+          traits={humanTwo}
+          onChange={updateHumanTwo}
+        />
+      </section>
+
+      <section className="game-result-grid">
+        <div className="image-game-result-panel image-panel">
+          <div className="section-heading">
+            <p className="section-kicker">Generated Result</p>
+            <h2>Child portrait</h2>
+          </div>
+
+          <div className={imageUrl ? 'image-stage has-image' : 'image-stage'}>
+            {imageUrl ? (
+              <img src={imageUrl} alt="AI-generated portrait of a fictional child based on selected adult traits." />
+            ) : (
+              <div className="empty-state">
+                <span />
+                <strong>No image yet</strong>
+                <p>Choose the adult traits, then generate a child image.</p>
+              </div>
+            )}
+          </div>
+
+          {caption ? <p className="caption-text">{caption}</p> : null}
+          {error ? <p className="error-box">{error}</p> : null}
+        </div>
+
+        <aside className="image-game-result-panel prompt-panel">
+          <div className="section-heading">
+            <p className="section-kicker">Current Inputs</p>
+            <h2>Trait mix</h2>
+          </div>
+
+          <div className="snapshot-grid">
+            <AdultSnapshot title="Human One" traits={humanOne} />
+            <AdultSnapshot title="Human Two" traits={humanTwo} />
+          </div>
+
+          <div className="prompt-preview">
+            <strong>Prompt details sent to the server</strong>
+            <p>Human One: {describeAdult(humanOne)}</p>
+            <p>Human Two: {describeAdult(humanTwo)}</p>
+          </div>
+        </aside>
+      </section>
+    </main>
+  )
+}
 
 const glossary = [
   {
@@ -99,79 +389,6 @@ const inheritancePatterns: InheritancePattern[] = [
   },
 ]
 
-const quizQuestions: QuizQuestion[] = [
-  {
-    prompt: 'If an organism has genotype Ww in a complete dominance model, what is it?',
-    options: ['Homozygous dominant', 'Heterozygous', 'Homozygous recessive'],
-    answer: 'Heterozygous',
-    explanation: 'Ww contains two different alleles, so it is heterozygous.',
-  },
-  {
-    prompt: 'What does a Punnett square predict?',
-    options: ['Guaranteed outcomes', 'Probable genotype combinations', 'DNA sequence length'],
-    answer: 'Probable genotype combinations',
-    explanation: 'Punnett squares show probabilities for inherited allele combinations.',
-  },
-  {
-    prompt: 'Why are classroom human trait charts limited?',
-    options: [
-      'They always describe every human trait perfectly',
-      'Many real traits involve multiple genes and environmental effects',
-      'Genes do not influence phenotype',
-    ],
-    answer: 'Many real traits involve multiple genes and environmental effects',
-    explanation: 'Real human inheritance is often more complex than a one-gene classroom model.',
-  },
-]
-
-const traitDefinitions: TraitDefinition[] = [
-  {
-    key: 'widowsPeak',
-    name: 'Hairline',
-    dominantAllele: 'W',
-    recessiveAllele: 'w',
-    dominantLabel: "Widow's peak",
-    recessiveLabel: 'Straight hairline',
-    description: 'Use a simple dominant/recessive model for hairline shape.',
-  },
-  {
-    key: 'hairTexture',
-    name: 'Hair Texture',
-    dominantAllele: 'C',
-    recessiveAllele: 'c',
-    dominantLabel: 'Curly hair',
-    recessiveLabel: 'Straight hair',
-    description: 'Choose parent alleles for a simple classroom model of hair texture.',
-  },
-  {
-    key: 'tongueRolling',
-    name: 'Tongue Rolling',
-    dominantAllele: 'R',
-    recessiveAllele: 'r',
-    dominantLabel: 'Can roll tongue',
-    recessiveLabel: "Can't roll tongue",
-    description: 'This trait is often used in intro genetics charts as a basic example.',
-  },
-  {
-    key: 'freckles',
-    name: 'Freckles',
-    dominantAllele: 'F',
-    recessiveAllele: 'f',
-    dominantLabel: 'Freckles',
-    recessiveLabel: 'No freckles',
-    description: 'Select the parent alleles and compare the predicted child outcomes.',
-  },
-  {
-    key: 'earLobes',
-    name: 'Ear Lobes',
-    dominantAllele: 'E',
-    recessiveAllele: 'e',
-    dominantLabel: 'Free ear lobes',
-    recessiveLabel: 'Attached ear lobes',
-    description: 'A simple inheritance chart can model ear lobe attachment as dominant or recessive.',
-  },
-]
-
 const imageCredits = [
   {
     title: 'Chromosome, DNA, and gene diagram',
@@ -195,198 +412,6 @@ const imageCredits = [
   },
 ]
 
-const defaultParents: ParentState = {
-  widowsPeak: { parentOne: 'Ww', parentTwo: 'Ww' },
-  hairTexture: { parentOne: 'Cc', parentTwo: 'Cc' },
-  tongueRolling: { parentOne: 'Rr', parentTwo: 'Rr' },
-  freckles: { parentOne: 'Ff', parentTwo: 'Ff' },
-  earLobes: { parentOne: 'Ee', parentTwo: 'Ee' },
-}
-
-const getGametes = (genotype: string) => genotype.split('')
-
-const orderGenotype = (left: string, right: string) => {
-  const pair = [left, right].sort((a, b) => {
-    const aUpper = a === a.toUpperCase()
-    const bUpper = b === b.toUpperCase()
-
-    if (aUpper === bUpper) {
-      return a.localeCompare(b)
-    }
-
-    return aUpper ? -1 : 1
-  })
-
-  return pair.join('')
-}
-
-const getPhenotype = (trait: TraitDefinition, genotype: string) =>
-  genotype.includes(trait.dominantAllele) ? trait.dominantLabel : trait.recessiveLabel
-
-const getTraitProbabilities = (trait: TraitDefinition, parentOne: string, parentTwo: string) => {
-  const top = getGametes(parentOne)
-  const side = getGametes(parentTwo)
-  const cells = side.flatMap((rowAllele) =>
-    top.map((columnAllele) => {
-      const genotype = orderGenotype(columnAllele, rowAllele)
-      return {
-        genotype,
-        phenotype: getPhenotype(trait, genotype),
-      }
-    }),
-  )
-
-  const genotypeCounts = cells.reduce<Record<string, number>>((acc, cell) => {
-    acc[cell.genotype] = (acc[cell.genotype] ?? 0) + 1
-    return acc
-  }, {})
-
-  const phenotypeCounts = cells.reduce<Record<string, number>>((acc, cell) => {
-    acc[cell.phenotype] = (acc[cell.phenotype] ?? 0) + 1
-    return acc
-  }, {})
-
-  return {
-    cells,
-    genotypeCounts: Object.entries(genotypeCounts),
-    phenotypeCounts: Object.entries(phenotypeCounts),
-  }
-}
-
-const pickRandomCell = <T,>(cells: T[]) => cells[Math.floor(Math.random() * cells.length)]
-
-const buildChildProfile = (parents: ParentState): ChildProfile => {
-  return traitDefinitions.reduce<ChildProfile>((profile, trait) => {
-    const probabilities = getTraitProbabilities(
-      trait,
-      parents[trait.key].parentOne,
-      parents[trait.key].parentTwo,
-    )
-    const selected = pickRandomCell(probabilities.cells)
-
-    profile[trait.key] = {
-      genotype: selected.genotype,
-      phenotype: selected.phenotype,
-    }
-
-    return profile
-  }, {} as ChildProfile)
-}
-
-function TraitIllustration({ trait, phenotype }: { trait: TraitDefinition; phenotype: string }) {
-  const isDominant = phenotype === trait.dominantLabel
-
-  return (
-    <svg viewBox="0 0 120 120" className="trait-illustration" aria-hidden="true">
-      <circle cx="60" cy="62" r="28" className="trait-face" />
-
-      {trait.key === 'widowsPeak' ? (
-        <>
-          <path
-            d={isDominant ? 'M26 45 C36 18, 84 18, 94 45 L76 45 L60 30 L44 45 Z' : 'M26 45 C36 18, 84 18, 94 45 Z'}
-            className="trait-hair"
-          />
-          <text x="60" y="102" textAnchor="middle" className="trait-text-svg">Hairline</text>
-        </>
-      ) : null}
-
-      {trait.key === 'hairTexture' ? (
-        <>
-          <path d="M24 44 C34 18, 86 18, 96 44 L96 54 C86 44, 78 58, 68 46 C58 58, 48 42, 38 56 C34 52, 29 49, 24 54 Z" className="trait-hair" />
-          {isDominant ? (
-            <path d="M34 63 C29 70, 38 74, 34 82 M50 61 C45 68, 54 74, 49 84 M71 61 C66 68, 75 74, 70 84 M86 62 C80 69, 89 75, 84 84" className="trait-accent-stroke" />
-          ) : (
-            <path d="M32 62 H88" className="trait-accent-stroke" />
-          )}
-          <text x="60" y="102" textAnchor="middle" className="trait-text-svg">Hair</text>
-        </>
-      ) : null}
-
-      {trait.key === 'tongueRolling' ? (
-        <>
-          <path d="M44 70 Q60 82 76 70" className="trait-accent-stroke" />
-          {isDominant ? (
-            <path d="M48 71 Q60 58 72 71 Q60 78 48 71" className="trait-mouth" />
-          ) : (
-            <line x1="46" y1="72" x2="74" y2="72" className="trait-accent-stroke" />
-          )}
-          <text x="60" y="102" textAnchor="middle" className="trait-text-svg">Tongue</text>
-        </>
-      ) : null}
-
-      {trait.key === 'freckles' ? (
-        <>
-          <path d="M26 44 C36 18, 84 18, 94 44 Z" className="trait-hair" />
-          {isDominant ? (
-            <>
-              <circle cx="48" cy="66" r="1.8" className="trait-freckle" />
-              <circle cx="52" cy="70" r="1.6" className="trait-freckle" />
-              <circle cx="70" cy="66" r="1.8" className="trait-freckle" />
-              <circle cx="66" cy="70" r="1.6" className="trait-freckle" />
-            </>
-          ) : null}
-          <text x="60" y="102" textAnchor="middle" className="trait-text-svg">Freckles</text>
-        </>
-      ) : null}
-
-      {trait.key === 'earLobes' ? (
-        <>
-          <path d="M26 44 C36 18, 84 18, 94 44 Z" className="trait-hair" />
-          <ellipse cx="32" cy="66" rx="5" ry={isDominant ? 9 : 6} className="trait-face" />
-          <ellipse cx="88" cy="66" rx="5" ry={isDominant ? 9 : 6} className="trait-face" />
-          {!isDominant ? (
-            <line x1="27" y1="71" x2="37" y2="71" className="trait-accent-stroke" />
-          ) : null}
-          <text x="60" y="102" textAnchor="middle" className="trait-text-svg">Ears</text>
-        </>
-      ) : null}
-
-      <circle cx="50" cy="60" r="2.2" className="trait-eye" />
-      <circle cx="70" cy="60" r="2.2" className="trait-eye" />
-    </svg>
-  )
-}
-
-function ChildAvatar({ profile }: { profile: ChildProfile }) {
-  const hairline = profile.widowsPeak.phenotype === "Widow's peak"
-  const curlyHair = profile.hairTexture.phenotype === 'Curly hair'
-  const freckles = profile.freckles.phenotype === 'Freckles'
-  const freeEarLobes = profile.earLobes.phenotype === 'Free ear lobes'
-  const tongueRolling = profile.tongueRolling.phenotype === 'Can roll tongue'
-
-  return (
-    <svg viewBox="0 0 220 220" className="child-avatar" aria-hidden="true">
-      <rect x="0" y="0" width="220" height="220" rx="24" className="child-avatar-bg" />
-      <circle cx="110" cy="104" r="58" className="child-face" />
-      <ellipse cx="54" cy="107" rx="10" ry={freeEarLobes ? 16 : 10} className="child-face" />
-      <ellipse cx="166" cy="107" rx="10" ry={freeEarLobes ? 16 : 10} className="child-face" />
-      <path
-        d={hairline ? 'M46 84 C60 26, 160 26, 174 84 L138 84 L110 60 L82 84 Z' : 'M46 84 C60 26, 160 26, 174 84 Z'}
-        className="child-hair"
-      />
-      {curlyHair ? (
-        <path d="M54 82 C46 92, 61 98, 54 110 M78 76 C70 87, 85 95, 78 108 M110 72 C101 84, 118 94, 110 108 M141 75 C133 86, 149 94, 141 108 M166 82 C158 92, 173 99, 166 111" className="child-curl" />
-      ) : null}
-      <circle cx="88" cy="104" r="5" className="child-eye" />
-      <circle cx="132" cy="104" r="5" className="child-eye" />
-      <path d="M108 106 L102 126 L112 126" className="child-nose" />
-      {tongueRolling ? (
-        <path d="M84 146 Q110 124 136 146 Q110 162 84 146" className="child-mouth" />
-      ) : (
-        <path d="M86 146 Q110 156 134 146" className="child-mouth-line" />
-      )}
-      {freckles ? (
-        <>
-          <circle cx="88" cy="132" r="2.4" className="child-freckle" />
-          <circle cx="95" cy="138" r="2.1" className="child-freckle" />
-          <circle cx="132" cy="132" r="2.4" className="child-freckle" />
-          <circle cx="125" cy="138" r="2.1" className="child-freckle" />
-        </>
-      ) : null}
-    </svg>
-  )
-}
-
 function SiteNav() {
   return (
     <header className="site-nav-shell">
@@ -399,8 +424,8 @@ function SiteNav() {
           <NavLink to="/" end className={({ isActive }) => (isActive ? 'nav-link active-nav-link' : 'nav-link')}>
             Information
           </NavLink>
-          <NavLink to="/lab" className={({ isActive }) => (isActive ? 'nav-link active-nav-link' : 'nav-link')}>
-            Lab & Tests
+          <NavLink to="/game" className={({ isActive }) => (isActive ? 'nav-link active-nav-link' : 'nav-link')}>
+            Game
           </NavLink>
         </div>
       </nav>
@@ -423,7 +448,7 @@ function InfoPage() {
           <h1>Genetics from DNA to inherited traits.</h1>
           <p className="hero-summary">
             Learn the vocabulary, inheritance patterns, and scientific context here, then use the
-            separate lab page to build parent traits and generate a child outcome.
+            separate game page to build two adult trait profiles and generate a fictional child image.
           </p>
         </div>
 
@@ -669,284 +694,12 @@ function InfoPage() {
   )
 }
 
-function LabPage() {
-  const [activeTrait, setActiveTrait] = useState<TraitKey>('widowsPeak')
-  const [parents, setParents] = useState<ParentState>(defaultParents)
-  const [childProfile, setChildProfile] = useState<ChildProfile>(() => buildChildProfile(defaultParents))
-  const [selectedQuestion, setSelectedQuestion] = useState(0)
-  const [answers, setAnswers] = useState<Record<number, string>>({})
-
-  const currentTrait = traitDefinitions.find((trait) => trait.key === activeTrait) ?? traitDefinitions[0]
-  const traitParents = parents[currentTrait.key]
-  const activeProbabilities = useMemo(
-    () => getTraitProbabilities(currentTrait, traitParents.parentOne, traitParents.parentTwo),
-    [currentTrait, traitParents.parentOne, traitParents.parentTwo],
-  )
-
-  const score = quizQuestions.reduce((total, question, index) => {
-    return total + (answers[index] === question.answer ? 1 : 0)
-  }, 0)
-
-  const activeQuestion = quizQuestions[selectedQuestion]
-  const selectedAnswer = answers[selectedQuestion]
-  const answeredCorrectly = selectedAnswer === activeQuestion.answer
-  const hasNextQuestion = selectedQuestion < quizQuestions.length - 1
-
-  const updateParentGenotype = (traitKey: TraitKey, parent: 'parentOne' | 'parentTwo', genotype: string) => {
-    setParents((current) => ({
-      ...current,
-      [traitKey]: {
-        ...current[traitKey],
-        [parent]: genotype,
-      },
-    }))
-  }
-
-  return (
-    <main className="page-shell">
-      <SiteNav />
-
-      <section className="panel page-intro-panel">
-        <div className="section-heading">
-          <p className="section-kicker">Lab & Tests</p>
-          <h1 className="page-title">Choose parent traits and generate a child outcome.</h1>
-          <p className="section-text wide-text">
-            This game uses a simplified dominant-and-recessive model. Pick a trait tab, choose the
-            alleles for each parent, then generate a child to see one possible set of inherited traits.
-          </p>
-        </div>
-      </section>
-
-      <section className="lab-page-grid">
-        <section className="panel lab-panel">
-          <div className="section-heading section-heading-tight">
-            <p className="section-kicker">Trait Builder</p>
-            <h2>Set each parent's alleles</h2>
-          </div>
-
-          <div className="trait-tabs" role="tablist" aria-label="Human trait tabs">
-            {traitDefinitions.map((trait) => (
-              <button
-                key={trait.key}
-                type="button"
-                className={trait.key === activeTrait ? 'trait-tab active-trait-tab' : 'trait-tab'}
-                onClick={() => setActiveTrait(trait.key)}
-              >
-                {trait.name}
-              </button>
-            ))}
-          </div>
-
-          <div className="trait-playground">
-            <div className="trait-visual-grid">
-              <article className="trait-option-card">
-                <TraitIllustration trait={currentTrait} phenotype={currentTrait.dominantLabel} />
-                <strong>{currentTrait.dominantLabel}</strong>
-                <span>Dominant allele: {currentTrait.dominantAllele}</span>
-              </article>
-
-              <article className="trait-option-card">
-                <TraitIllustration trait={currentTrait} phenotype={currentTrait.recessiveLabel} />
-                <strong>{currentTrait.recessiveLabel}</strong>
-                <span>Recessive allele: {currentTrait.recessiveAllele}</span>
-              </article>
-            </div>
-
-            <div className="trait-controls-grid">
-              <div className="trait-info-card">
-                <h3>{currentTrait.name}</h3>
-                <p>{currentTrait.description}</p>
-              </div>
-
-              <div className="parent-selector-card">
-                <h3>Parent 1</h3>
-                <div className="genotype-button-row">
-                  {[`${currentTrait.dominantAllele}${currentTrait.dominantAllele}`, `${currentTrait.dominantAllele}${currentTrait.recessiveAllele}`, `${currentTrait.recessiveAllele}${currentTrait.recessiveAllele}`].map((genotype) => (
-                    <button
-                      key={`parent1-${genotype}`}
-                      type="button"
-                      className={traitParents.parentOne === genotype ? 'genotype-button active-genotype-button' : 'genotype-button'}
-                      onClick={() => updateParentGenotype(currentTrait.key, 'parentOne', genotype)}
-                    >
-                      {genotype}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="parent-selector-card">
-                <h3>Parent 2</h3>
-                <div className="genotype-button-row">
-                  {[`${currentTrait.dominantAllele}${currentTrait.dominantAllele}`, `${currentTrait.dominantAllele}${currentTrait.recessiveAllele}`, `${currentTrait.recessiveAllele}${currentTrait.recessiveAllele}`].map((genotype) => (
-                    <button
-                      key={`parent2-${genotype}`}
-                      type="button"
-                      className={traitParents.parentTwo === genotype ? 'genotype-button active-genotype-button' : 'genotype-button'}
-                      onClick={() => updateParentGenotype(currentTrait.key, 'parentTwo', genotype)}
-                    >
-                      {genotype}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="probability-panel-grid">
-            <article className="result-panel">
-              <h3>Genotype probabilities</h3>
-              <div className="result-list">
-                {activeProbabilities.genotypeCounts.map(([genotype, count]) => (
-                  <div key={genotype} className="result-row">
-                    <strong>{genotype}</strong>
-                    <span>{count}/4</span>
-                  </div>
-                ))}
-              </div>
-            </article>
-
-            <article className="result-panel">
-              <h3>Phenotype probabilities</h3>
-              <div className="result-list">
-                {activeProbabilities.phenotypeCounts.map(([phenotype, count]) => (
-                  <div key={phenotype} className="result-row">
-                    <strong>{phenotype}</strong>
-                    <span>{Math.round((count / 4) * 100)}%</span>
-                  </div>
-                ))}
-              </div>
-            </article>
-
-            <article className="result-panel action-panel">
-              <h3>Generate child</h3>
-              <p>
-                After setting the parent alleles across the tabs, generate one possible child using
-                the selected probabilities.
-              </p>
-              <button type="button" className="primary-button" onClick={() => setChildProfile(buildChildProfile(parents))}>
-                Create Child
-              </button>
-            </article>
-          </div>
-        </section>
-
-        <section className="panel child-panel">
-          <div className="section-heading section-heading-tight">
-            <p className="section-kicker">Child Preview</p>
-            <h2>One possible inherited outcome</h2>
-          </div>
-
-          <div className="child-preview-layout">
-            <ChildAvatar profile={childProfile} />
-
-            <div className="child-summary-grid">
-              {traitDefinitions.map((trait) => {
-                const probabilities = getTraitProbabilities(
-                  trait,
-                  parents[trait.key].parentOne,
-                  parents[trait.key].parentTwo,
-                )
-                const phenotypeEntry = probabilities.phenotypeCounts.find(
-                  ([phenotype]) => phenotype === childProfile[trait.key].phenotype,
-                )
-                const chance = phenotypeEntry ? Math.round((phenotypeEntry[1] / 4) * 100) : 0
-
-                return (
-                  <div key={trait.key} className="child-trait-card">
-                    <strong>{trait.name}</strong>
-                    <span>{childProfile[trait.key].phenotype}</span>
-                    <small>
-                      {childProfile[trait.key].genotype} · {chance}% chance
-                    </small>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </section>
-
-        <section className="panel quiz-panel">
-          <div className="section-heading section-heading-tight">
-            <p className="section-kicker">Check Your Understanding</p>
-            <h2>Review the genetics ideas</h2>
-          </div>
-
-          <div className="quiz-layout">
-            <div className="quiz-summary-bar">
-              <div className="quiz-progress-pill">Question {selectedQuestion + 1} of {quizQuestions.length}</div>
-              <div className="score-card">
-                <span>Score</span>
-                <strong>
-                  {score}/{quizQuestions.length}
-                </strong>
-              </div>
-            </div>
-
-            <div className="quiz-card">
-              <h3>{activeQuestion.prompt}</h3>
-              <div className="answer-stack">
-                {activeQuestion.options.map((option) => {
-                  const isSelected = selectedAnswer === option
-                  const isCorrect = activeQuestion.answer === option
-                  const className = isSelected
-                    ? isCorrect
-                      ? 'answer-button correct-answer'
-                      : 'answer-button wrong-answer'
-                    : 'answer-button'
-
-                  return (
-                    <button
-                      key={option}
-                      type="button"
-                      className={className}
-                      onClick={() =>
-                        setAnswers((previous) => ({
-                          ...previous,
-                          [selectedQuestion]: option,
-                        }))
-                      }
-                    >
-                      {option}
-                    </button>
-                  )
-                })}
-              </div>
-
-              <div className="feedback-box">
-                <strong>
-                  {selectedAnswer
-                    ? selectedAnswer === activeQuestion.answer
-                      ? 'Correct'
-                      : 'Try again'
-                    : 'Select an answer'}
-                </strong>
-                <p>{activeQuestion.explanation}</p>
-
-                {answeredCorrectly ? (
-                  <div className="quiz-action-row">
-                    <button
-                      type="button"
-                      className="primary-button"
-                      onClick={() => setSelectedQuestion((current) => (hasNextQuestion ? current + 1 : current))}
-                    >
-                      {hasNextQuestion ? 'Next question' : 'Quiz complete'}
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        </section>
-      </section>
-    </main>
-  )
-}
-
 function App() {
   return (
     <Routes>
       <Route path="/" element={<InfoPage />} />
-      <Route path="/lab" element={<LabPage />} />
+      <Route path="/game" element={<GamePage />} />
+      <Route path="/lab" element={<GamePage />} />
     </Routes>
   )
 }
